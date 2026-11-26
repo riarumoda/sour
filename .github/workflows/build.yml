@@ -1,0 +1,93 @@
+name: Build DSU
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version, e.g. 23.2 (empty = newest)
+        required: false
+        type: string
+        default: ""
+      rom_url:
+        description: Explicit ROM zip URL (empty = query the LineageOS API)
+        required: false
+        type: string
+        default: ""
+      release:
+        description: Publish the artifacts as a GitHub release
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: build-sweet-dsu
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost \
+            /usr/local/share/swift /usr/lib/jvm /opt/microsoft \
+            /usr/local/share/powershell
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            curl e2fsprogs lz4 python3-brotli
+          df -h /
+
+      - name: Build the DSU package
+        env:
+          ROM_INPUT: ${{ inputs.rom_url }}
+          LINEAGE_VERSION: ${{ inputs.version }}
+        run: |
+          args=()
+          if [ -n "$ROM_INPUT" ]; then
+            args+=("$ROM_INPUT")
+          fi
+          ./build.py "${args[@]}"
+
+      - name: Show artifacts
+        if: always()
+        run: ls -lh artifacts/ || true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: sweet-lineage-dsu
+          retention-days: 30
+          compression-level: 0
+          path: artifacts/
+          if-no-files-found: warn
+
+      - name: Publish release
+        if: ${{ inputs.release == true }}
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: sweet-dsu-${{ github.run_id }}
+          name: LineageOS DSU (${{ github.run_id }})
+          body: |
+            DSU package for sweet (Redmi Note 10 Pro / Pro Max).
+
+            - `rom2dsu-sweet-lineage-*-dsu.zip`: flash with DSU Sideloader or gsi_tool.
+            - `stock.tar.lz4`: untouched images from the same ROM.
+          files: |
+            artifacts/*.zip
+            artifacts/stock.tar.lz4
+            artifacts/SHA256SUMS.txt
+          overwrite_files: true
