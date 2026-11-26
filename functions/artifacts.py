@@ -38,7 +38,7 @@ def make_stock_archive(workdir: Path, output: Path) -> None:
         )
         assert tar.stdout is not None
         lz4 = subprocess.Popen(
-            ["lz4", "-9", "-"],
+            ["lz4", "-12", "-"],
             stdin=tar.stdout,
             stdout=destination,
             stderr=subprocess.PIPE,
@@ -57,7 +57,7 @@ def pack_dsu(workdir: Path, output: Path) -> None:
     log(f"packing {output.name}")
     output.unlink(missing_ok=True)
     with zipfile.ZipFile(
-        output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6
+        output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
     ) as archive:
         for name in PARTITIONS:
             image = workdir / f"{name}.img"
