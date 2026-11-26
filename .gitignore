@@ -7,8 +7,9 @@
 # Downloaded ROMs and converted packages
 *.img
 *.img.lz4
+*.lz4
 *.zip
-!vendor/**/*.zip
+*.tar
 
 # Python
 __pycache__/
